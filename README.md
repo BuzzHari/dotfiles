@@ -6,29 +6,70 @@ My personal dotfiles, managed using a bare git repository.
 
 This setup uses a bare git repo to track dotfiles directly in the home directory without symlinks. The git database lives in `~/.dotfiles` while the actual files stay in their normal locations.
 
-## Setup on a New Machine
+## Setup on a New Linux VM
+
+Run the installer as the target login user, without `sudo`:
 
 ```bash
-# Clone the bare repo
-git clone --bare git@github.com:USERNAME/dotfiles.git ~/.dotfiles
+git clone --depth=1 https://github.com/BuzzHari/dotfiles.git ~/dotfiles-bootstrap
+bash ~/dotfiles-bootstrap/install.sh
+```
 
-# Define the alias for this session
+The installer supports Debian/Ubuntu, Fedora/RHEL-like, and Arch-like Linux
+VMs. It will:
+
+- install build dependencies with the VM's package manager;
+- build the latest upstream Vim and tmux into `~/.local`;
+- download and SHA-256-check the latest fzf, ripgrep (`rg`), and duf releases;
+- install a user-local Node.js LTS copy when Pi needs Node.js 22.19 or newer;
+- run the official Pi and OpenAI Codex CLI installers; and
+- clone/update `~/.dotfiles` as a bare repository and check it out into `$HOME`.
+
+The script never needs root for the applications themselves. It uses `sudo`
+only for build dependencies, so do not run `sudo bash install.sh`. If checkout
+finds an existing conflicting home file, it moves that file to a unique
+`~/.dotfiles-backup.*` directory before retrying.
+
+Useful options:
+
+```bash
+bash install.sh --dry-run       # show the plan without changing anything
+bash install.sh --skip-apps     # only configure the bare dotfiles repository
+bash install.sh --skip-dotfiles # only install the applications
+```
+
+The installer is intentionally a latest-at-install-time bootstrap, not a
+reproducible lockfile. Set `VIM_TAG` or `TMUX_TAG` when you need to pin those
+source builds. Set `DOTFILES_REPO_URL` or `DOTFILES_DIR` for a different
+repository or bare-repo location.
+
+It does not modify SSH, UFW, users, or other firewall settings; apply those
+server-specific security policies separately.
+
+Pi is installed with the [official Pi installer](https://pi.dev/install.sh),
+and Codex with the [official Codex CLI installer](https://chatgpt.com/codex/install.sh).
+Those commands execute current remote installer code; review and pin release
+artifacts instead if you need a high-assurance, fully reproducible bootstrap.
+
+On the first `codex` run, sign in and use `/model` if you want to select
+`gpt-5.6-sol`. The installer does not store credentials or change Codex's
+model configuration.
+
+### Manual bare-repository setup
+
+The automated installer performs these steps. They are useful when you only
+want the dotfiles and already have the applications installed:
+
+```bash
+git clone --bare https://github.com/BuzzHari/dotfiles.git ~/.dotfiles
 alias dotfiles='git --git-dir=$HOME/.dotfiles --work-tree=$HOME'
-
-# Hide untracked files
 dotfiles config --local status.showUntrackedFiles no
-
-# Checkout the files
 dotfiles checkout
 ```
 
-If you get errors about existing files, back them up first:
-
-```bash
-mkdir -p ~/.dotfiles-backup
-dotfiles checkout 2>&1 | grep "^\s" | awk '{print $1}' | xargs -I{} mv {} ~/.dotfiles-backup/{}
-dotfiles checkout
-```
+If the checkout reports conflicts, copy the conflicting files somewhere safe,
+then run `dotfiles checkout` again. The installer automates this backup without
+parsing human-readable Git error output.
 
 ## Usage
 
