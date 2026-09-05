@@ -20,15 +20,31 @@ VMs. It will:
 
 - install build dependencies with the VM's package manager;
 - build the latest upstream Vim and tmux into `~/.local`;
+- install the six Vim plugins below using Vim's native `pack/*/start/*`
+  package directories (no external Vim plugin manager);
+- install or update TPM for the tmux plugins declared in `.tmux.conf`;
 - download and SHA-256-check the latest fzf, ripgrep (`rg`), and duf releases;
 - install a user-local Node.js LTS copy when Pi needs Node.js 22.19 or newer;
 - run the official Pi and OpenAI Codex CLI installers; and
 - clone/update `~/.dotfiles` as a bare repository and check it out into `$HOME`.
 
+When a tmux server is already running, the installer reloads the checked-out
+`.tmux.conf`. Otherwise, tmux reads it automatically the next time it starts.
+TPM itself is installed, but press `Ctrl-b I` inside tmux to fetch the plugins
+declared in the configuration.
+
 The script never needs root for the applications themselves. It uses `sudo`
 only for build dependencies, so do not run `sudo bash install.sh`. If checkout
 finds an existing conflicting home file, it moves that file to a unique
 `~/.dotfiles-backup.*` directory before retrying.
+
+The installer is safe to rerun, but it is not strictly missing-only: binaries
+whose recorded version is current are skipped, while clean matching Vim/TPM
+Git checkouts may be fast-forwarded to the latest revision. Dirty, non-Git, or
+different-origin plugin directories are left unchanged. Pi is left in place
+when already available; the Codex installer is invoked on each application
+installation run. The bare dotfiles repository is fetched again so tracked
+updates can be applied, with conflicting home files preserved in a backup.
 
 Useful options:
 
@@ -107,6 +123,7 @@ Active panes use a bright green border and an `▶ ACTIVE` marker. Pane borders 
 
 ### Script overview
 
+- `.tmux/scripts/copy-to-system-clipboard.sh`: Sends a tmux copy-mode selection to `pbcopy` on macOS, `wl-copy` on Wayland, or `xclip`/`xsel` on X11.
 - `.tmux/scripts/copilot-switch.sh`: F11 FZF switcher for Copilot, Pi parents, and Pi children; displays live state, hierarchy, unread activity, provider icons, pins, and safely validated opaque tmux targets.
 - `.tmux/scripts/session-switch.sh`: `Ctrl-b e` window switcher that carries opaque tmux session and window IDs through FZF.
 - `.tmux/scripts/agent-status.py`: Collects and renders combined Copilot/Pi status entries for the tmux status line.
@@ -117,13 +134,30 @@ Active panes use a bright green border and an `▶ ACTIVE` marker. Pane borders 
 - `.tmux/scripts/toggle-pane-collapse.sh`: Shell entry point used by the `F10` and `Ctrl-b Ctrl-z` bindings.
 - `.tmux/scripts/copilot-jump.sh`: Legacy compatibility handler for older `ca-*` Copilot status tokens.
 
+In vi copy mode, press `v` to begin selecting and `y` to copy. The selection is
+kept in tmux's buffer and sent to the desktop clipboard. On Debian/Ubuntu,
+install `xclip` for an X11 session or `wl-clipboard` for Wayland if neither is
+already present:
+
+```bash
+sudo apt install xclip       # XFCE/X11
+sudo apt install wl-clipboard # Wayland
+```
+
+If tmux is running on a remote VM over SSH, a clipboard utility on the VM
+cannot directly change the clipboard on your local computer. In that case,
+the terminal must support OSC 52, or you must use X11 forwarding; the helper
+will otherwise report that no local desktop clipboard is available.
+
 The status line refreshes once per second and obtains Pi state from the tmux-subagent broker records under `~/.pi/agent/extensions/tmux-subagents/brokers/`. Existing Pi sessions may need to be reloaded after installing an updated Pi extension.
 
 A tiled tmux layout must always fill the available window area. When all panes in a split are folded, one pane remains the space-consuming anchor; the other panes remain one-line folded panes.
 
 ## Vim Plugins
 
-Install these plugins using Vim's native package system:
+The installer installs these plugins using Vim's native package system. They
+are placed below `~/.vim/pack/*/start/*`, so Vim loads them automatically at
+startup. To install them manually, use:
 
 ```bash
 # vim-airline - statusline

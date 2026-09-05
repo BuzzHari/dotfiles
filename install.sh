@@ -14,6 +14,8 @@ INSTALL_DIR="${LOCAL_PREFIX}/bin"
 VERSION_DIR="${LOCAL_PREFIX}/share/dotfiles-installer/versions"
 DOTFILES_DIR="${DOTFILES_DIR:-${TARGET_HOME}/.dotfiles}"
 DOTFILES_REPO_URL="${DOTFILES_REPO_URL:-https://github.com/BuzzHari/dotfiles.git}"
+TPM_DIR="${TPM_DIR:-${TARGET_HOME}/.tmux/plugins/tpm}"
+TPM_REPO_URL="${TPM_REPO_URL:-https://github.com/tmux-plugins/tpm}"
 VIM_TAG="${VIM_TAG:-}"
 TMUX_TAG="${TMUX_TAG:-}"
 DEFAULT_BUILD_JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '2')"
@@ -25,12 +27,25 @@ PKG_MANAGER=""
 KERNEL_ARCH="$(uname -m)"
 TMP_ROOT=""
 
+# Vim loads plugins placed below ~/.vim/pack/*/start/* automatically.  Keep
+# these paths explicit so the installer uses Vim's native package mechanism
+# rather than adding a third-party Vim plugin manager.
+VIM_PLUGIN_SPECS=(
+    "https://github.com/vim-airline/vim-airline.git|dist/start/vim-airline"
+    "https://github.com/vim-airline/vim-airline-themes.git|dist/start/vim-airline-themes"
+    "https://github.com/rakr/vim-one.git|rakr/start/vim-one"
+    "https://github.com/tpope/vim-fugitive.git|tpope/start/fugitive"
+    "https://github.com/fatih/vim-go.git|plugins/start/vim-go"
+    "https://github.com/gcmt/taboo.vim.git|gcmt/start/taboo.vim"
+)
+
 usage() {
     cat <<EOF
 Usage: ${SCRIPT_NAME} [options]
 
-Install the latest upstream Vim, tmux, fzf, ripgrep, and duf, install Pi and
-OpenAI Codex CLI, then configure this repository as a bare dotfiles repo.
+Install the latest upstream Vim, tmux, fzf, ripgrep, and duf, install the
+configured Vim plugins, Pi, and OpenAI Codex CLI, then configure this
+repository as a bare dotfiles repo.
 
 Options:
   --skip-apps       Do not install or update applications.
@@ -41,6 +56,8 @@ Options:
 Environment overrides:
   DOTFILES_REPO_URL  Git URL (default: ${DOTFILES_REPO_URL})
   DOTFILES_DIR       Bare repo path (default: ${DOTFILES_DIR})
+  TPM_REPO_URL       TPM Git URL (default: ${TPM_REPO_URL})
+  TPM_DIR            TPM checkout path (default: ${TPM_DIR})
   LOCAL_PREFIX       User install prefix (default: ${LOCAL_PREFIX})
   VIM_TAG            Vim tag to build instead of the newest tag
   TMUX_TAG           tmux release tag to build instead of the newest release
@@ -105,15 +122,17 @@ EOF
   1. Install compiler and download dependencies with the VM's package manager.
   2. Build the latest upstream Vim and tmux under ${LOCAL_PREFIX}.
   3. Download and verify the latest fzf, ripgrep, and duf release archives.
-  4. Install Node.js LTS if Pi needs it, then run the official Pi installer.
-  5. Run the official OpenAI Codex CLI installer.
+  4. Install the configured Vim plugins under ~/.vim/pack/*/start/*.
+  5. Install or update TPM under ${TPM_DIR}.
+  6. Install Node.js LTS if Pi needs it, then run the official Pi installer.
+  7. Run the official OpenAI Codex CLI installer.
 EOF
     else
         printf '  (application installation skipped)\n'
     fi
     if ((SETUP_DOTFILES)); then
         cat <<EOF
-  6. Clone or update ${DOTFILES_DIR}, back up checkout conflicts, and checkout
+  8. Clone or update ${DOTFILES_DIR}, back up checkout conflicts, and checkout
      the repository into ${TARGET_HOME}.
 EOF
     else
@@ -412,6 +431,58 @@ install_vim() {
     record_version vim "$tag"
 }
 
+install_vim_plugin() {
+    local repo="$1"
+    local relative_dir="$2"
+    local plugin_dir="${TARGET_HOME}/.vim/pack/${relative_dir}"
+    local parent_dir
+    local existing_origin
+
+    if [[ -e "$plugin_dir" || -L "$plugin_dir" ]]; then
+        if [[ -L "$plugin_dir" || ! -d "$plugin_dir" ]]; then
+            warn "Vim plugin path exists but is not a directory; leaving it unchanged: ${plugin_dir}"
+            return
+        fi
+        if ! git -C "$plugin_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            warn "Vim plugin directory is not a Git checkout; leaving it unchanged: ${plugin_dir}"
+            return
+        fi
+
+        existing_origin="$(git -C "$plugin_dir" remote get-url origin 2>/dev/null || true)"
+        if [[ "$existing_origin" != "$repo" ]]; then
+            warn "Vim plugin has a different origin; leaving it unchanged: ${plugin_dir}"
+            return
+        fi
+        if [[ -n "$(git -C "$plugin_dir" status --porcelain 2>/dev/null || true)" ]]; then
+            warn "Vim plugin checkout has local changes; skipping update: ${plugin_dir}"
+            return
+        fi
+
+        log "Updating Vim plugin ${repo}"
+        if ! git -C "$plugin_dir" pull --ff-only --depth=1; then
+            warn "Could not fast-forward Vim plugin; leaving it unchanged: ${plugin_dir}"
+        fi
+        return
+    fi
+
+    parent_dir="$(dirname -- "$plugin_dir")"
+    mkdir -p "$parent_dir"
+    log "Installing Vim plugin ${repo}"
+    git clone --depth=1 "$repo" "$plugin_dir"
+}
+
+install_vim_plugins() {
+    local spec
+    local repo
+    local relative_dir
+
+    log "Installing Vim plugins with Vim's native package directories."
+    for spec in "${VIM_PLUGIN_SPECS[@]}"; do
+        IFS='|' read -r repo relative_dir <<< "$spec"
+        install_vim_plugin "$repo" "$relative_dir"
+    done
+}
+
 install_tmux() {
     local release_ref="${TMUX_TAG#v}"
     local json_path
@@ -444,6 +515,62 @@ install_tmux() {
 
     [[ -x "${INSTALL_DIR}/tmux" ]] || die "tmux did not install to ${INSTALL_DIR}."
     record_version tmux "$version"
+}
+
+install_tpm() {
+    local parent_dir
+    local existing_origin
+
+    if [[ -e "$TPM_DIR" || -L "$TPM_DIR" ]]; then
+        if [[ -L "$TPM_DIR" || ! -d "$TPM_DIR" ]]; then
+            warn "TPM path exists but is not a directory; leaving it unchanged: ${TPM_DIR}"
+            return
+        fi
+        if ! git -C "$TPM_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            warn "TPM path is not a Git checkout; leaving it unchanged: ${TPM_DIR}"
+            return
+        fi
+
+        existing_origin="$(git -C "$TPM_DIR" remote get-url origin 2>/dev/null || true)"
+        if [[ "$existing_origin" != "$TPM_REPO_URL" ]]; then
+            warn "TPM checkout has a different origin; leaving it unchanged: ${TPM_DIR}"
+            return
+        fi
+        if [[ -n "$(git -C "$TPM_DIR" status --porcelain 2>/dev/null || true)" ]]; then
+            warn "TPM checkout has local changes; skipping update: ${TPM_DIR}"
+            return
+        fi
+
+        log "Updating TPM."
+        if ! git -C "$TPM_DIR" pull --ff-only --depth=1; then
+            warn "Could not fast-forward TPM; leaving it unchanged: ${TPM_DIR}"
+        fi
+        return
+    fi
+
+    parent_dir="$(dirname -- "$TPM_DIR")"
+    mkdir -p "$parent_dir"
+    log "Installing TPM."
+    git clone --depth=1 "$TPM_REPO_URL" "$TPM_DIR"
+}
+
+reload_tmux_config() {
+    local config_path="${TARGET_HOME}/.tmux.conf"
+
+    command -v tmux >/dev/null 2>&1 || return 0
+    [[ -f "$config_path" ]] || {
+        log "No ${config_path} exists yet; tmux will read its configuration when started."
+        return 0
+    }
+
+    if tmux list-sessions >/dev/null 2>&1; then
+        log "Reloading ${config_path} in the running tmux server."
+        if ! tmux source-file "$config_path"; then
+            warn "Could not reload ${config_path}; start a new tmux server and inspect its configuration."
+        fi
+    else
+        log "No running tmux server; ${config_path} will be read on the next tmux start."
+    fi
 }
 
 install_fzf() {
@@ -750,7 +877,9 @@ main() {
         require_sudo
         install_system_packages
         install_vim
+        install_vim_plugins
         install_tmux
+        install_tpm
         install_fzf
         install_ripgrep
         install_duf
@@ -760,6 +889,10 @@ main() {
 
     if ((SETUP_DOTFILES)); then
         setup_dotfiles
+    fi
+
+    if ((INSTALL_APPS)); then
+        reload_tmux_config
     fi
 
     show_summary
