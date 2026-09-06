@@ -135,19 +135,21 @@ Active panes use a bright green border and an `▶ ACTIVE` marker. Pane borders 
 - `.tmux/scripts/copilot-jump.sh`: Legacy compatibility handler for older `ca-*` Copilot status tokens.
 
 In vi copy mode, press `v` to begin selecting and `y` to copy. The selection is
-kept in tmux's buffer and sent to the desktop clipboard. On Debian/Ubuntu,
-install `xclip` for an X11 session or `wl-clipboard` for Wayland if neither is
-already present:
+kept in tmux's buffer. For local tmux sessions, the copy binding also invokes
+`.tmux/scripts/copy-to-system-clipboard.sh`; on Debian/Ubuntu, install `xclip`
+for an X11 session or `wl-clipboard` for Wayland if neither is already present:
 
 ```bash
 sudo apt install xclip       # XFCE/X11
 sudo apt install wl-clipboard # Wayland
 ```
 
-If tmux is running on a remote VM over SSH, a clipboard utility on the VM
-cannot directly change the clipboard on your local computer. In that case,
-the terminal must support OSC 52, or you must use X11 forwarding; the helper
-will otherwise report that no local desktop clipboard is available.
+If tmux is running on a remote VM over SSH, the binding does not invoke the
+desktop clipboard helper. tmux sends the copied text through OSC 52 to the
+local terminal instead. The configuration enables Kitty's `clipboard` and
+`hyperlinks` terminal features only when the attached SSH client reports
+`xterm-kitty`; other remote terminals receive tmux's native copy behavior but
+must provide their own clipboard support.
 
 The status line refreshes once per second and obtains Pi state from the tmux-subagent broker records under `~/.pi/agent/extensions/tmux-subagents/brokers/`. Existing Pi sessions may need to be reloaded after installing an updated Pi extension.
 
