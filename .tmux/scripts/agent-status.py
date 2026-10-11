@@ -12,8 +12,8 @@ HOME = Path.home()
 COPILOT_STATE = HOME / ".copilot" / "session-state"
 BROKER_ROOT = HOME / ".pi" / "agent" / "extensions" / "tmux-subagents" / "brokers"
 CACHE_PATH = Path(os.environ.get("XDG_CACHE_HOME", str(HOME / ".cache"))) / "copilot-switch.json"
-BAR_BG = "colour233"
-SEP = "colour238"
+BAR_BG = "#20242c"
+SEP = "#5b6573"
 LEFT_CAP = "\ue0b6"
 RIGHT_CAP = "\ue0b4"
 COPILOT_ICON = os.environ.get("TMUX_COPILOT_ICON", "\uec1e")
@@ -571,7 +571,7 @@ def render(rows: list[dict]) -> str:
 def main() -> None:
     rows, _cache, _dirty = collect_rows()
     if not rows:
-        value = f"#[fg=colour238,bg={BAR_BG}] no agents #[bg={BAR_BG}]"
+        value = f"#[fg=#aab2bf,bg={BAR_BG}] no agents #[bg={BAR_BG}]"
     else:
         value = render(rows)
     subprocess.run(

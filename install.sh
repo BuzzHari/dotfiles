@@ -45,7 +45,7 @@ Usage: ${SCRIPT_NAME} [options]
 
 Install the latest upstream Vim, tmux, fzf, ripgrep, and duf, install the
 configured Vim plugins, Pi, and OpenAI Codex CLI, then configure this
-repository as a bare dotfiles repo.
+repository as a bare dotfiles repo, including the Kitty configuration.
 
 Options:
   --skip-apps       Do not install or update applications.
@@ -133,7 +133,8 @@ EOF
     if ((SETUP_DOTFILES)); then
         cat <<EOF
   8. Clone or update ${DOTFILES_DIR}, back up checkout conflicts, and checkout
-     the repository into ${TARGET_HOME}.
+     the repository into ${TARGET_HOME}, including
+     ${TARGET_HOME}/.config/kitty/kitty.conf.
 EOF
     else
         printf '  (dotfiles setup skipped)\n'

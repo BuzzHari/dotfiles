@@ -109,8 +109,9 @@ HISTSIZE=1000000
 
 export EDITOR=vim
 
-# Set bash prompt dir length. Works since Bash 4
-PROMPT_DIRTRIM=1
+# Abbreviate long working directories in \w while keeping the last two parts.
+# For example: ~/.../Videos/Module 2 - Virtualizing the CPU
+PROMPT_DIRTRIM=2
 
 # Update path for Golang
 export GOPATH=$HOME/go

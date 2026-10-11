@@ -26,7 +26,15 @@ VMs. It will:
 - download and SHA-256-check the latest fzf, ripgrep (`rg`), and duf releases;
 - install a user-local Node.js LTS copy when Pi needs Node.js 22.19 or newer;
 - run the official Pi and OpenAI Codex CLI installers; and
-- clone/update `~/.dotfiles` as a bare repository and check it out into `$HOME`.
+- clone/update `~/.dotfiles` as a bare repository and check it out into `$HOME`,
+  including Kitty's configuration at `~/.config/kitty/kitty.conf`.
+
+Kitty's configuration is tracked at `.config/kitty/kitty.conf`. It enables
+`copy_on_select clipboard`, so releasing a mouse selection copies the text
+directly to the desktop clipboard, including rectangular selections made with
+`Ctrl+Alt+Shift+drag`. The installer configures Kitty but does not install the
+terminal application. If Kitty is already running, press `Ctrl+Shift+F5` to
+reload its configuration.
 
 When a tmux server is already running, the installer reloads the checked-out
 `.tmux.conf`. Otherwise, tmux reads it automatically the next time it starts.
